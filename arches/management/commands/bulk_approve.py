@@ -13,24 +13,31 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument(
-            "-u", "--user_id", type=int, help="The ID of the user to approve edits for"
+            "-u",
+            "--user_ids",
+            type=int,
+            nargs="+",
+            help="One or more user IDs to approve edits for (separate by space)",
         )
 
     def handle(self, *args, **options):
-        user_id = options.get("user_id")
+        user_ids = options.get("user_ids")
 
-        if not user_id:
-            raise CommandError("You must provide a user_id argument.")
+        if not user_ids:
+            raise CommandError("You must provide at least one user_id argument.")
 
-        if not user_has_provisional_edits(user_id):
+        for user_id in user_ids:
+            if not user_has_provisional_edits(user_id):
+                self.stdout.write(
+                    self.style.SUCCESS(
+                        f"No provisional edits found for user ID {user_id}."
+                    )
+                )
+                continue
+
+            approve_all_provisional_edits_for_user(user_id)
             self.stdout.write(
-                self.style.SUCCESS(f"No provisional edits found for user ID {user_id}.")
+                self.style.SUCCESS(
+                    f"All provisional edits for user ID {user_id} have been approved."
+                )
             )
-            return
-
-        approve_all_provisional_edits_for_user(user_id)
-        self.stdout.write(
-            self.style.SUCCESS(
-                f"All provisional edits for user ID {user_id} have been approved."
-            )
-        )
