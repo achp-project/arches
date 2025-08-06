@@ -7,8 +7,9 @@ from arches.app.utils.bulkupload import (
 
 class Command(BaseCommand):
     """
-    Commands for managing the loading and running of packages in Arches
+    Approves all provisional edits for a specified user.
 
+    Provide the user ID with the --user_id argument to approve all their provisional edits.
     """
 
     def add_arguments(self, parser):
