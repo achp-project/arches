@@ -27,7 +27,17 @@ class Command(BaseCommand):
         if not user_ids:
             raise CommandError("You must provide at least one user_id argument.")
 
+        User = get_user_model()
         for user_id in user_ids:
+            try:
+                user = User.objects.get(pk=user_id)
+            except User.DoesNotExist:
+                self.stdout.write(
+                    self.style.ERROR(
+                        f"User with ID {user_id} does not exist."
+                    )
+                )
+                continue
             if not user_has_provisional_edits(user_id):
                 self.stdout.write(
                     self.style.SUCCESS(
