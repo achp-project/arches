@@ -3,6 +3,7 @@ from arches.app.utils.bulkupload import (
     user_has_provisional_edits,
     approve_all_provisional_edits_for_user,
 )
+from django.contrib.auth import get_user_model
 
 
 class Command(BaseCommand):
@@ -33,9 +34,7 @@ class Command(BaseCommand):
                 user = User.objects.get(pk=user_id)
             except User.DoesNotExist:
                 self.stdout.write(
-                    self.style.ERROR(
-                        f"User with ID {user_id} does not exist."
-                    )
+                    self.style.ERROR(f"User with ID {user_id} does not exist.")
                 )
                 continue
             if not user_has_provisional_edits(user_id):
