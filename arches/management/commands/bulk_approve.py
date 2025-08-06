@@ -8,4 +8,9 @@ class Command(BaseCommand):
     """
 
     def add_arguments(self, parser):
-        pass
+        parser.add_argument(
+            "-u", "--user_id", type=int, help="The ID of the user to approve edits for"
+        )
+
+    def handle(self, *args, **options):
+        user_id = options.get("user_id")
