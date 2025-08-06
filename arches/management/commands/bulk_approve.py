@@ -40,7 +40,7 @@ class Command(BaseCommand):
                 continue
             if not user_has_provisional_edits(user_id):
                 self.stdout.write(
-                    self.style.SUCCESS(
+                    self.style.WARNING(
                         f"No provisional edits found for user ID {user_id}."
                     )
                 )
