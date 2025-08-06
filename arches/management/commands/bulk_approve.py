@@ -1,9 +1,10 @@
+from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand, CommandError
+
 from arches.app.utils.bulkupload import (
     user_has_provisional_edits,
     approve_all_provisional_edits_for_user,
 )
-from django.contrib.auth import get_user_model
 
 
 class Command(BaseCommand):
