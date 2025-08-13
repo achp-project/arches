@@ -61,7 +61,7 @@ class Command(BaseCommand):
                 continue
             if not user_has_provisional_edits(user_id):
                 self.stdout.write(
-                    self.style.NOTICE(
+                    self.style.WARNING(
                         f"No provisional edits found for user ID {user_id} or username {User.objects.filter(pk=user_id).first().username}"
                     )
                 )
