@@ -15,18 +15,23 @@ class Command(BaseCommand):
     """
 
     def add_arguments(self, parser):
-        parser.add_argument(
+        group = parser.add_mutually_exclusive_group(required=True)
+        group.add_argument(
             "-u",
             "--user_ids",
             type=int,
             nargs="+",
+            metavar="USER_ID",
+            default=[],
             help="One or more user IDs to approve edits for (separate by space)",
         )
-        parser.add_argument(
+        group.add_argument(
             "-n",
             "--user_names",
             type=str,
             nargs="+",
+            metavar="USER_NAME",
+            default=[],
             help="One or more user names to approve edits for (separate by space)",
         )
 
@@ -34,31 +39,47 @@ class Command(BaseCommand):
         user_ids = options.get("user_ids")
         user_names = options.get("user_names")
 
-        if user_ids and user_names:
-            raise CommandError(
-                "You must provide either user_ids OR user_names argument, not both."
-            )
-
-        if not user_ids and not user_names:
-            raise CommandError(
-                "You must provide at least one user_id or user_name argument."
-            )
         User = get_user_model()
-        if user_names:
-            user_ids = User.objects.filter(username__in=user_names).values_list(
+        if user_ids:
+            existing_users = User.objects.filter(pk__in=user_ids).values_list(
                 "id", flat=True
             )
-            if not user_ids:
+            if not existing_users:
+                raise CommandError(f"User(s) with ID(s) {user_ids} do(es) not exist.")
+            missing_user_ids = set(user_ids) - set(existing_users)
+            if missing_user_ids:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"User(s) with ID(s) {missing_user_ids} do(es) not exist and will be skipped."
+                    )
+                )
+            user_ids = list(existing_users)
+
+        if user_names:
+            existing_user_names_and_ids = User.objects.filter(
+                username__in=user_names
+            ).values("id", "username")
+            if not existing_user_names_and_ids:
                 raise CommandError(
                     f"User(s) with name(s) {user_names} do(es) not exist."
                 )
+            found_usernames = {user["username"] for user in existing_user_names_and_ids}
+            missing_usernames = set(user_names) - found_usernames
+
+            if missing_usernames:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"User(s) with name(s) {missing_usernames} do(es) not exist and will be skipped."
+                    )
+                )
+            user_ids = [user["id"] for user in existing_user_names_and_ids]
+
+        if not user_ids:
+            raise CommandError(
+                f"User(s) with name(s) {user_names} or ID(s) {user_ids} do(es) not exist."
+            )
 
         for user_id in user_ids:
-            if not User.objects.filter(pk=user_id).exists():
-                self.stdout.write(
-                    self.style.ERROR(f"User with ID {user_id} does not exist.")
-                )
-                continue
             if not user_has_provisional_edits(user_id):
                 self.stdout.write(
                     self.style.WARNING(
