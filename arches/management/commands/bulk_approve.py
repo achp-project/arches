@@ -31,16 +31,14 @@ class Command(BaseCommand):
 
         User = get_user_model()
         for user_id in user_ids:
-            try:
-                user = User.objects.get(pk=user_id)
-            except User.DoesNotExist:
+            if not User.objects.filter(pk=user_id).exists():
                 self.stdout.write(
                     self.style.ERROR(f"User with ID {user_id} does not exist.")
                 )
                 continue
             if not user_has_provisional_edits(user_id):
                 self.stdout.write(
-                    self.style.SUCCESS(
+                    self.style.NOTICE(
                         f"No provisional edits found for user ID {user_id}."
                     )
                 )
