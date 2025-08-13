@@ -83,11 +83,6 @@ class Command(BaseCommand):
                 )
             user_ids = [user["id"] for user in existing_user_names_and_ids]
 
-        if not user_ids:
-            raise CommandError(
-                f"User(s) with name(s) {user_names} or ID(s) {user_ids} do(es) not exist."
-            )
-
         for user_id in user_ids:
             if not user_has_provisional_edits(user_id):
                 self.stdout.write(
