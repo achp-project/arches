@@ -9,9 +9,18 @@ from arches.app.utils.bulkupload import (
 
 class Command(BaseCommand):
     """
-    Approves all provisional edits for a specified user.
+    Approves all provisional edits for specified users.
 
-    Provide the user IDs with the --user_ids argument to approve all their provisional edits.
+    This command can process users by either user IDs or usernames, with comprehensive
+    validation and graceful handling of non-existent users.
+
+    Arguments:
+        --user_ids: One or more user IDs to approve edits for (separate by space)
+        --user_names: One or more usernames to approve edits for (separate by space)
+
+    Examples:
+        python manage.py bulk_approve --user_ids 1 2 3
+        python manage.py bulk_approve --user_names john_doe jane_smith admin
     """
 
     def add_arguments(self, parser):
