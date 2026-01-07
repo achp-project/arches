@@ -719,6 +719,7 @@ dl.inline-flex dd {
     flex-direction: column;
     background-color: #fff;
     width:100%;
+    height: inherit;
 }
 
 .branch-csv-etl,
@@ -767,6 +768,7 @@ dl.inline-flex dd {
 
 .branch-xl-metadata-container {
     padding: 0px 15px;
+    overflow: hidden;
 }
 
 .branch-csv-etl-load-summmary {
@@ -1164,9 +1166,6 @@ div.wf-multi-tile-card-info div {
     flex-direction: row;
     list-style-type: none;
     flex-wrap: wrap;
-}
-
-ul.tabbed-report-tab-list {
     margin: 0;
     padding: 0 20px;
 }
@@ -8208,6 +8207,10 @@ div.row.widget-wrapper.report-header:hover {
     background: #fbfbfb;
 }
 
+.plugin-main {
+    height: inherit;
+}
+
 .plugin-main .map-report-header-container {
     height: 100%;
 }
@@ -12547,6 +12550,8 @@ a.filter-tools:hover {
     aside,
     .print-btn,
     .ep-tools,
+    .mapboxgl-ctrl-geocoder,
+    .workbench-card-sidebar,
     .geocode-container,
     .geometry-tools-container,
     .geometry-editing-notifications,
@@ -12595,10 +12600,6 @@ a.filter-tools:hover {
         border-bottom: 1px solid rgba(128, 128, 128, 0.5);
     }
 
-    .mapboxgl-map {
-        display: none;
-    }
-
     .print-map {
         display: block;
         width: 100%;
@@ -12639,6 +12640,10 @@ a.filter-tools:hover {
     .resource-component-abstract {
       height: auto !important;
       overflow: visible !important;
+    }
+
+    .rp-report-container-preview .workbench-card-container.map-container {
+        width: 100%;
     }
 }
 

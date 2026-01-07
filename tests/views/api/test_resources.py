@@ -540,6 +540,7 @@ class ResourceAPITests(ArchesTestCase):
         self.assertEqual(response.status_code, 400)
 
     def test_api_resources_handles_null_sortorder(self):
+        self.client.login(username="admin", password="admin")
         zeroth_card = self.data_type_graph.cardmodel_set.get(sortorder=0)
         zeroth_card.sortorder = None
         zeroth_card.save()

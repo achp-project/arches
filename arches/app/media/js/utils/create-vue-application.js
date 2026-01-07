@@ -14,7 +14,11 @@ import { DEFAULT_THEME } from "@/arches/themes/default.ts";
 import { generateArchesURL } from '@/arches/utils/generate-arches-url.ts';
 
 
-export default async function createVueApplication(vueComponent, themeConfiguration = DEFAULT_THEME) {
+export default async function createVueApplication(
+    vueComponent, 
+    themeConfiguration = DEFAULT_THEME,
+    initialProps = {},
+) {
     /**
      * This wrapper allows us to maintain a level of control inside arches-core
      * over Vue apps. For instance this allows us to abstract i18n setup/config
@@ -29,7 +33,7 @@ export default async function createVueApplication(vueComponent, themeConfigurat
      * and rebuild the app when a specific event is fired from the LanguageSwitcher component.
     **/
 
-    return fetch(generateArchesURL("get_frontend_i18n_data")).then(function(resp) {
+    return fetch(generateArchesURL("arches:get_frontend_i18n_data")).then(function(resp) {
         if (!resp.ok) {
             throw new Error(resp.statusText);
         }
@@ -41,7 +45,7 @@ export default async function createVueApplication(vueComponent, themeConfigurat
             translations: respJSON['translations'],
         });
 
-        const app = createApp(vueComponent);
+        const app = createApp(vueComponent, initialProps);
         const darkModeClass = themeConfiguration.theme.options.darkModeSelector.substring(1);
         const darkModeStorageKey = `arches.${darkModeClass}`;
 

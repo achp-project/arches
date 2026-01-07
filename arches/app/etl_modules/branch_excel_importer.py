@@ -131,13 +131,16 @@ class BranchExcelImporter(BaseImportModule):
                         ),
                     )
 
-                tile_value[nodeid] = {
-                    "value": value,
-                    "valid": valid,
-                    "source": source_value,
-                    "notes": error_message,
-                    "datatype": datatype,
-                }
+                if value is not None:
+                    tile_value[nodeid] = {
+                        "value": value,
+                        "valid": valid,
+                        "source": source_value,
+                        "notes": error_message,
+                        "datatype": datatype,
+                    }
+                else:
+                    tile_value[nodeid] = None
             except KeyError:
                 pass
 
@@ -258,7 +261,7 @@ class BranchExcelImporter(BaseImportModule):
             self.stage_excel_file(file, summary, cursor)
 
     def stage_excel_file(self, file, summary, cursor):
-        if file.endswith("xlsx"):
+        if file.endswith("xlsx") and ("attachments" + os.sep) not in file:
             summary["files"][file]["worksheets"] = []
             uploaded_file_path = os.path.join(
                 settings.UPLOADED_FILES_DIR, "tmp", self.loadid, file

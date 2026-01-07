@@ -231,6 +231,17 @@ class ArchesDefaultDenyPermissionFramework(ArchesPermissionBase):
         self, user: User, search_result: dict, groups: list[str]
     ) -> dict:
         result = {}
+
+        if user.is_superuser:
+            result["can_read"] = True
+            result["can_edit"] = True
+            result["is_principal"] = (
+                "permissions" in search_result["_source"]
+                and "principal_user" in search_result["_source"]["permissions"]
+                and user.id in search_result["_source"]["permissions"]["principal_user"]
+            )
+            return result
+
         user_can_read = self.get_resource_types_by_perm(
             user,
             [
@@ -257,7 +268,7 @@ class ArchesDefaultDenyPermissionFramework(ArchesPermissionBase):
             "permissions" in search_result["_source"]
             and "groups_edit" in search_result["_source"]["permissions"]
         )
-        result["can_read"] = user.is_superuser or (
+        result["can_read"] = (
             (
                 groups_read_exists
                 and len(
@@ -281,27 +292,23 @@ class ArchesDefaultDenyPermissionFramework(ArchesPermissionBase):
 
         user_can_edit = len(self.get_editable_resource_types(user)) > 0
         result["can_edit"] = (
-            user.is_superuser
-            or (
-                groups_edit_exists
-                and len(
-                    set(
-                        search_result["_source"]["permissions"]["groups_edit"]
-                    ).intersection(set(groups))
-                )
-                > 0
-                and user_can_edit
+            groups_edit_exists
+            and len(
+                set(
+                    search_result["_source"]["permissions"]["groups_edit"]
+                ).intersection(set(groups))
             )
-            or (
-                users_edit_exists
-                and len(
-                    set(
-                        search_result["_source"]["permissions"]["users_edit"]
-                    ).intersection(set([user.id]))
+            > 0
+            and user_can_edit
+        ) or (
+            users_edit_exists
+            and len(
+                set(search_result["_source"]["permissions"]["users_edit"]).intersection(
+                    set([user.id])
                 )
-                > 0
-                and user_can_edit
             )
+            > 0
+            and user_can_edit
         )
 
         result["is_principal"] = (
@@ -326,17 +333,15 @@ class ArchesDefaultDenyPermissionFramework(ArchesPermissionBase):
         if user.is_authenticated:
             if user.is_superuser:
                 return True
-            if resourceid:
+            if resourceid or resource:
                 result = self.check_resource_instance_permissions(
                     user, resourceid, "view_resourceinstance", resource=resource
                 )
-                if result is not None:
-                    if result["permitted"] == "unknown":
-                        return self.user_has_resource_model_permissions(
-                            user, ["models.read_nodegroup"], result["resource"]
-                        )
-                    else:
-                        return result["permitted"]
+                if result["permitted"]:
+                    return self.user_has_resource_model_permissions(
+                        user, ["models.read_nodegroup"], result["resource"]
+                    )
+
                 else:
                     return False
 

@@ -18,6 +18,7 @@ from django.db.models.constraints import UniqueConstraint
 from django.db.models.expressions import CombinedExpression
 from django.db.models.functions import Concat, Lower
 from django.utils import translation
+from django.utils.functional import cached_property
 from django.utils.translation import gettext_lazy as _
 
 from arches.app.const import ExtensionType
@@ -648,18 +649,26 @@ class GraphModel(SaveSupportsBlindOverwriteMixin, models.Model):
             published_graph = self.get_published_graph()
 
             function_slugs = []
-            for function_dict in published_graph.serialized_graph["functions_x_graphs"]:
-                function_slug = {}
+            if "functions_x_graphs" in published_graph.serialized_graph:
+                for function_dict in published_graph.serialized_graph[
+                    "functions_x_graphs"
+                ]:
+                    function_slug = {}
+                    try:
+                        for key, value in function_dict.items():
+                            if isinstance(value, str):
+                                try:
+                                    value = uuid.UUID(value)
+                                except ValueError:
+                                    pass
+                            function_slug[key] = value
+                    except AttributeError:
+                        return [
+                            function_x_graph
+                            for function_x_graph in self.functionxgraph_set.all()
+                        ]
 
-                for key, value in function_dict.items():
-                    if isinstance(value, str):
-                        try:
-                            value = uuid.UUID(value)
-                        except ValueError:
-                            pass
-                    function_slug[key] = value
-
-                function_slugs.append(function_slug)
+                    function_slugs.append(function_slug)
 
             return [
                 models.FunctionXGraph(**function_dict)
@@ -736,7 +745,7 @@ class GraphModel(SaveSupportsBlindOverwriteMixin, models.Model):
         if (
             self.isresource
             and not self.source_identifier_id
-            and not self.resource_instance_lifecycle
+            and not self.resource_instance_lifecycle_id
         ):
             self.resource_instance_lifecycle_id = (
                 settings.DEFAULT_RESOURCE_INSTANCE_LIFECYCLE_ID
@@ -813,11 +822,22 @@ class GraphXPublishedGraph(models.Model):
     def find_publication_in_language(self, language):
         if not hasattr(self, "_published_graph_cache"):
             self._published_graph_cache = {}
-        if language not in self._published_graph_cache:
-            self._published_graph_cache[language] = self.publishedgraph_set.filter(
-                language=language
+
+        normalized_language_code = language.replace("_", "-").lower()
+        if normalized_language_code in self._published_graph_cache:
+            return self._published_graph_cache[normalized_language_code]
+
+        publication = self.publishedgraph_set.filter(
+            language__code__iexact=normalized_language_code
+        ).first()
+        if publication is None and "-" in normalized_language_code:
+            primary_language_code = normalized_language_code.split("-", 1)[0]
+            publication = self.publishedgraph_set.filter(
+                language__code__iexact=primary_language_code
             ).first()
-        return self._published_graph_cache[language]
+
+        self._published_graph_cache[normalized_language_code] = publication
+        return publication
 
     def refresh_from_db(self, *args, **kwargs):
         self._published_graph_cache = {}
@@ -1509,7 +1529,18 @@ class ResourceInstance(SaveSupportsBlindOverwriteMixin, models.Model):
 
         return creatorid
 
-    def save(self, **kwargs):
+    def save(
+        self,
+        *,
+        context=None,
+        index=True,
+        request=None,
+        transaction_id=None,
+        user=None,
+        should_update_resource_instance_lifecycle_state=False,
+        current_resource_instance_lifecycle_state=None,
+        **kwargs,
+    ):
         try:
             self.graph_publication = self.graph.publication
         except ResourceInstance.graph.RelatedObjectDoesNotExist:
@@ -1523,6 +1554,88 @@ class ResourceInstance(SaveSupportsBlindOverwriteMixin, models.Model):
         kwargs = add_to_update_fields(kwargs, "resource_instance_lifecycle_state")
         kwargs = add_to_update_fields(kwargs, "graph_publication")
         super(ResourceInstance, self).save(**kwargs)
+
+        if should_update_resource_instance_lifecycle_state:
+            self.save_edit(
+                user=user,
+                edit_type="update_resource_instance_lifecycle_state",
+                oldvalue=f"{current_resource_instance_lifecycle_state.name} ({current_resource_instance_lifecycle_state.id})",
+                newvalue=f"{self.resource_instance_lifecycle_state.name} ({self.resource_instance_lifecycle_state.id})",
+                transaction_id=transaction_id,
+            )
+            self.run_lifecycle_handlers(
+                current_resource_instance_lifecycle_state,
+                request=request,
+                context=context,
+            )
+            if index:
+                self.index(context)
+
+    def run_lifecycle_handlers(
+        self, current_lifecycle_state, request=None, context=None
+    ):
+        for function in [
+            function_x_graph.function.get_class_module()(function_x_graph.config, None)
+            for function_x_graph in models.FunctionXGraph.objects.filter(
+                graph_id=self.graph_id,
+                function__functiontype="lifecyclehandler",
+            ).select_related("function")
+        ]:
+            try:
+                function.on_update_lifecycle_state(
+                    self,
+                    current_state=current_lifecycle_state,
+                    new_state=self.resource_instance_lifecycle_state,
+                    request=request,
+                    context=context,
+                )
+            except NotImplementedError:
+                pass
+
+    def save_edit(
+        self,
+        user={},
+        note="",
+        edit_type="",
+        oldvalue=None,
+        newvalue=None,
+        transaction_id=None,
+    ):
+        timestamp = datetime.datetime.now()
+        edit = EditLog()
+        edit.resourceclassid = self.graph_id
+        edit.resourceinstanceid = self.resourceinstanceid
+        edit.userid = getattr(user, "id", "")
+        edit.user_email = getattr(user, "email", "")
+        edit.user_firstname = getattr(user, "first_name", "")
+        edit.user_lastname = getattr(user, "last_name", "")
+        edit.user_username = getattr(user, "username", "")
+        edit.note = note
+        edit.timestamp = timestamp
+        edit.oldvalue = oldvalue
+        edit.newvalue = newvalue
+        if transaction_id is not None:
+            edit.transactionid = transaction_id
+        edit.edittype = edit_type
+        edit.save()
+
+
+class ResourceIdentifier(models.Model):
+    id = models.BigAutoField(primary_key=True)
+    resourceid = models.ForeignKey(
+        blank=False,
+        on_delete=models.CASCADE,
+        to="models.ResourceInstance",
+        related_name="resource_identifiers",
+        editable=False,
+    )
+    identifier = models.TextField()
+    source = models.TextField()
+    identifier_type = models.TextField(blank=True)
+
+    class Meta:
+        db_table = "resource_identifiers"
+        managed = True
 
 
 class ResourceInstanceLifecycle(models.Model):
@@ -2067,7 +2180,7 @@ class UserProfile(models.Model):
     phone = models.CharField(max_length=16, blank=True)
     encrypted_mfa_hash = models.CharField(max_length=128, null=True, blank=True)
 
-    @property
+    @cached_property
     def viewable_nodegroups(self):
         from arches.app.utils.permission_backend import get_nodegroups_by_perm
 
@@ -2078,7 +2191,7 @@ class UserProfile(models.Model):
             )
         )
 
-    @property
+    @cached_property
     def editable_nodegroups(self):
         from arches.app.utils.permission_backend import get_nodegroups_by_perm
 
@@ -2089,7 +2202,7 @@ class UserProfile(models.Model):
             )
         )
 
-    @property
+    @cached_property
     def deletable_nodegroups(self):
         from arches.app.utils.permission_backend import get_nodegroups_by_perm
 
@@ -2135,6 +2248,11 @@ class NotificationType(SaveSupportsBlindOverwriteMixin, models.Model):
     emailnotify = models.BooleanField(default=False)
     webnotify = models.BooleanField(default=False)
 
+    def serialize(self, fields=None, exclude=None, **kwargs):
+        return JSONSerializer().handle_model(
+            self, fields=fields, exclude=exclude, **kwargs
+        )
+
     class Meta:
         managed = True
         db_table = "notification_types"
@@ -2176,6 +2294,11 @@ class UserXNotification(SaveSupportsBlindOverwriteMixin, models.Model):
     notif = models.ForeignKey(Notification, on_delete=models.CASCADE)
     isread = models.BooleanField(default=False)
     recipient = models.ForeignKey(User, on_delete=models.CASCADE)
+
+    def serialize(self, fields=None, exclude=None, **kwargs):
+        return JSONSerializer().handle_model(
+            self, fields=fields, exclude=exclude, **kwargs
+        )
 
     class Meta:
         managed = True
@@ -2521,7 +2644,7 @@ class SpatialView(models.Model):
                     ("valid_language_count", "integer"),
                 ],
                 func=format_file_into_sql(
-                    "arches_update_spatial_views.sql", "sql/triggers"
+                    "__arches_update_spatial_views.sql", "sql/triggers"
                 ),
             )
         ]

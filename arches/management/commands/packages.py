@@ -784,6 +784,22 @@ class Command(BaseCommand):
                 print(e)
                 print("Failed to load sql files")
 
+        @transaction.atomic
+        def load_users(package_dir, users_directory):
+            user_files = sorted(
+                glob.glob(os.path.join(package_dir, users_directory, "*.csv"))
+            )
+            try:
+                with connection.cursor() as cursor:
+                    for user_file in user_files:
+                        management.call_command(
+                            "add_users", operation="csv_users", source=user_file
+                        )
+                        self.stdout.write("  %s" % user_file)
+            except Exception as e:
+                self.stdout.write(e)
+                self.stdout.write("Failed to load user files")
+
         def load_resource_views(package_dir):
             resource_views = sorted(
                 glob.glob(
@@ -817,64 +833,6 @@ class Command(BaseCommand):
                 self.import_graphs(resource_models, overwrite_graphs=overwrite_graphs)
             except IndexError:
                 logger.warning("No resource models in package")
-
-        def load_concepts(package_dir, overwrite, stage, defer_indexing):
-            file_types = ["*.xml", "*.rdf"]
-
-            from time import time
-
-            start = time()
-
-            concept_data = []
-            for file_type in file_types:
-                concept_data.extend(
-                    glob.glob(
-                        os.path.join(
-                            package_dir, "reference_data", "concepts", file_type
-                        )
-                    )
-                )
-
-            bar1 = (
-                pyprind.ProgBar(len(concept_data), bar_char="█", stream=self.stdout)
-                if len(concept_data) > 1
-                else None
-            )
-            for path in concept_data:
-                if bar1 is None:
-                    print(path)
-                self.import_reference_data(path, overwrite, stage, defer_indexing)
-                if bar1 is not None:
-                    head, tail = os.path.split(path)
-                    bar1.update(item_id=tail + (" " * 10))
-
-            collection_data = []
-            for file_type in file_types:
-                collection_data.extend(
-                    glob.glob(
-                        os.path.join(
-                            package_dir, "reference_data", "collections", file_type
-                        )
-                    )
-                )
-
-            bar2 = (
-                pyprind.ProgBar(len(collection_data), bar_char="█", stream=self.stdout)
-                if len(collection_data) > 1
-                else None
-            )
-            for path in collection_data:
-                if bar2 is None:
-                    print(path)
-                self.import_reference_data(path, overwrite, stage, defer_indexing)
-                if bar2 is not None:
-                    head, tail = os.path.split(path)
-                    bar2.update(item_id=tail)
-
-            print(
-                "Total time to load concepts: %s s"
-                % (timedelta(seconds=time() - start))
-            )
 
         def load_mapbox_styles(style_paths, basemap):
             for path in style_paths:
@@ -1260,7 +1218,7 @@ class Command(BaseCommand):
         print("loading etl modules")
         load_etl_modules(package_location)
         print("loading concepts")
-        load_concepts(
+        self.load_concepts(
             package_location, overwrite_concepts, stage_concepts, defer_indexing
         )
         print("loading resource models and branches")
@@ -1295,6 +1253,8 @@ class Command(BaseCommand):
         self.update_resource_geojson_geometries()
         print("loading post sql")
         load_sql(package_location, "post_sql")
+        print("loading users")
+        load_users(package_location, "users")
         print("loading templates")
         load_templates(package_location)
         if defer_indexing is True:
@@ -1308,6 +1268,59 @@ class Command(BaseCommand):
             )
         else:
             print("package load complete")
+
+    def load_concepts(self, package_dir, overwrite, stage, defer_indexing):
+        file_types = ["*.xml", "*.rdf"]
+
+        from time import time
+
+        start = time()
+
+        concept_data = []
+        for file_type in file_types:
+            concept_data.extend(
+                glob.glob(
+                    os.path.join(package_dir, "reference_data", "concepts", file_type)
+                )
+            )
+
+        bar1 = (
+            pyprind.ProgBar(len(concept_data), bar_char="█", stream=self.stdout)
+            if len(concept_data) > 1
+            else None
+        )
+        for path in concept_data:
+            if bar1 is None:
+                print(path)
+            self.import_reference_data(path, overwrite, stage, defer_indexing)
+            if bar1 is not None:
+                head, tail = os.path.split(path)
+                bar1.update(item_id=tail + (" " * 10))
+
+        collection_data = []
+        for file_type in file_types:
+            collection_data.extend(
+                glob.glob(
+                    os.path.join(
+                        package_dir, "reference_data", "collections", file_type
+                    )
+                )
+            )
+
+        bar2 = (
+            pyprind.ProgBar(len(collection_data), bar_char="█", stream=self.stdout)
+            if len(collection_data) > 1
+            else None
+        )
+        for path in collection_data:
+            if bar2 is None:
+                print(path)
+            self.import_reference_data(path, overwrite, stage, defer_indexing)
+            if bar2 is not None:
+                head, tail = os.path.split(path)
+                bar2.update(item_id=tail)
+
+        print("Total time to load concepts: %s s" % (timedelta(seconds=time() - start)))
 
     def setup(self, package_name, es_install_location=None):
         """

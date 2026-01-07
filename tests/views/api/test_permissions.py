@@ -41,7 +41,7 @@ class InstancePermissionsAPITest(ArchesTestCase):
         ]
         self.assertEqual(len(resource_selects), 1, list(queries))
         self.assertEqual(
-            response.content.decode(), '{"delete": true, "edit": true, "read": true}'
+            response.content.decode(), '{"delete": false, "edit": false, "read": true}'
         )
 
     def test_get_with_resource_editor_role(self):
