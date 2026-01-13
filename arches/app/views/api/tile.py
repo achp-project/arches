@@ -2,9 +2,11 @@ from django.utils.decorators import method_decorator
 from django.utils.translation import gettext as _
 from django.views.decorators.csrf import csrf_exempt
 
+
 from arches.app.datatypes.datatypes import DataTypeFactory
 from arches.app.models import models
 from arches.app.models.tile import Tile as TileProxyModel
+from arches.app.utils.decorators import check_tile_permissions
 from arches.app.utils.permission_backend import get_nodegroups_by_perm
 from arches.app.utils.response import JSONResponse
 from arches.app.views.api import APIBase
@@ -12,6 +14,7 @@ from arches.app.views.tile import TileData as TileView
 
 
 @method_decorator(csrf_exempt, name="dispatch")
+@method_decorator(check_tile_permissions, name="dispatch")
 class Tile(APIBase):
     def get(self, request, tileid):
         try:
@@ -42,6 +45,7 @@ class Tile(APIBase):
 
 
 @method_decorator(csrf_exempt, name="dispatch")
+@method_decorator(check_tile_permissions, name="dispatch")
 class NodeValue(APIBase):
     def post(self, request):
         datatype_factory = DataTypeFactory()

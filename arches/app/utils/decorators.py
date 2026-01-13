@@ -26,6 +26,7 @@ from django.core.exceptions import PermissionDenied
 from django.http import HttpResponseRedirect
 from django.urls import reverse
 
+from arches.app.models import models
 from arches.app.utils.permission_backend import user_can_read_resource
 from arches.app.utils.permission_backend import user_can_edit_resource
 from arches.app.utils.permission_backend import user_can_delete_resource
@@ -34,7 +35,7 @@ from arches.app.utils.permission_backend import user_created_transaction
 from arches.app.utils.permission_backend import (
     group_required as permission_group_required,
 )
-
+from arches.app.utils.response import JSONResponse
 
 # Get an instance of a logger
 logger = logging.getLogger(__name__)
@@ -164,5 +165,25 @@ def user_created_transaction_match(function):
             return function(request, *args, **kwargs)
         else:
             raise PermissionDenied
+
+    return wrapper
+
+
+def check_tile_permissions(func):
+    @functools.wraps(func)
+    def wrapper(request, *args, **kwargs):
+        resourceid = request.POST.get("resourceinstanceid", None)
+        permitted = False
+        if not resourceid:
+            tileid = request.POST.get("tileid", None) or kwargs.get("tileid")
+            resourceid = models.TileModel.objects.get(pk=tileid).resourceinstance_id
+        if request.method == "POST":
+            permitted = user_can_edit_resource(request.user, resourceid)
+        if request.method == "GET":
+            permitted = user_can_read_resource(request.user, resourceid)
+        if permitted:
+            return func(request, *args, **kwargs)
+        else:
+            return JSONResponse(status=403)
 
     return wrapper
