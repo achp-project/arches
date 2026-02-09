@@ -93,9 +93,9 @@ class BranchExcelImporter(BaseImportModule):
                 datatype_instance = self.datatype_factory.get_instance(datatype)
                 source_value = row_details[key]
                 config = node_details["config"]
-                config["path"] = os.path.join(
-                    settings.UPLOADED_FILES_DIR, "tmp", self.loadid
-                )
+
+                config["bulk_import"] = True
+
                 config["loadid"] = self.loadid
                 try:
                     config["nodeid"] = nodeid
@@ -190,7 +190,7 @@ class BranchExcelImporter(BaseImportModule):
                                 "update"  # db will "insert" if tileid does not exist
                             )
                         elif nodegroup_cardinality == "1":
-                            if TileModel.objects.filter(pk=cell_values[1]).exists():
+                            if TileModel.objects.filter(pk=user_tileid).exists():
                                 operation = "update"
 
                     nodegroup_depth = nodegroup_lookup[row_details["nodegroup_id"]][

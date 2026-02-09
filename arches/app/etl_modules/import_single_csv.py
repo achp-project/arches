@@ -426,7 +426,9 @@ class ImportSingleCsv(BaseImportModule):
                             source_value = row[i]
                             config = current_node.config
                             config["nodeid"] = node
-                            config["path"] = temp_dir
+
+                            config["bulk_import"] = True
+                            config["loadid"] = self.loadid
 
                             if source_value:
                                 if datatype == "string":

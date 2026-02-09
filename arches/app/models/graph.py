@@ -1620,8 +1620,10 @@ class Graph(models.GraphModel):
         nodegroups = self.get_nodegroups(force_recalculation=True)
         error_query = models.LoadErrors.objects.filter(
             Q(nodegroup__in=nodegroups) | Q(node__in=self.nodes.values())
-        )
-        staging_query = models.LoadStaging.objects.filter(nodegroup__in=nodegroups)
+        ).only("node", "nodegroup")
+        staging_query = models.LoadStaging.objects.filter(
+            nodegroup__in=nodegroups
+        ).only("nodegroup")
         error_objs = set(error_query)
         staging_objs = set(staging_query)
         error_query.update(nodegroup=None, node=None)
@@ -1638,13 +1640,19 @@ class Graph(models.GraphModel):
             valid_stagings = {
                 obj for obj in staging_objs if obj.nodegroup_id in all_nodegroup_ids
             }
-            models.LoadErrors.objects.bulk_update(valid_errors, fields=["nodegroup"])
-            models.LoadStaging.objects.bulk_update(valid_stagings, fields=["nodegroup"])
+            models.LoadErrors.objects.bulk_update(
+                valid_errors, fields=["nodegroup"], batch_size=500
+            )
+            models.LoadStaging.objects.bulk_update(
+                valid_stagings, fields=["nodegroup"], batch_size=500
+            )
 
             # Restore the node references that still exist.
             all_node_ids = models.Node.objects.values_list("pk", flat=True)
             valid_errors = {obj for obj in error_objs if obj.node_id in all_node_ids}
-            models.LoadErrors.objects.bulk_update(valid_errors, fields=["node"])
+            models.LoadErrors.objects.bulk_update(
+                valid_errors, fields=["node"], batch_size=500
+            )
 
     def update_permissions_from_serialized_graph(self, serialized_graph):
         if (
